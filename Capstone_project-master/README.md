@@ -119,4 +119,4 @@ Before deploying, check `k8s/deployment.yaml` and update its image reference to 
 
 ## Author
 
-Furqan Mulla
+Suhas D J
