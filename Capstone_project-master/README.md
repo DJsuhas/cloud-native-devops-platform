@@ -1,235 +1,122 @@
-# DevOpsX 2.0 – End-to-End CI/CD with Kubernetes, Terraform & Monitoring
+# DevOpsX 2.0
 
-## 📌 Project Overview
-**DevOpsX 2.0** is a full-stack DevOps implementation that automates:
-- source code management,
-- containerization,
-- CI/CD,
-- Kubernetes deployment,
-- infrastructure provisioning,
-- and monitoring.
+A small Node.js service packaged with Docker and prepared for Kubernetes deployment. The repository also includes Terraform-managed Kubernetes objects, Prometheus Operator monitoring manifests, and a Jenkins pipeline example.
 
-This project demonstrates modern industry standards used in enterprise DevOps environments.
+## Architecture
 
----
-
-# 🏗️ Objective
-Design and implement a complete DevOps pipeline integrating:
-- Git-based version control
-- Automated CI/CD using Jenkins
-- Containerization with Docker
-- Deployment on Kubernetes
-- Infrastructure provisioning with Terraform
-- Monitoring using Prometheus & Grafana
-
----
-
-# 🧱 Architecture
-
-```
-Developer → GitHub → Jenkins (CI/CD Pipeline)
-      |                 |
-      |                 → Builds Docker Image
-      |                 → Deploys to Kubernetes
-      |
-Kubernetes Cluster → Running Application
-      |
-Monitoring Stack (Prometheus + Grafana)
-      |
-Dashboards & Alerts
+```text
+Node.js app (port 3000)
+  ├── HTTP response at /
+  └── Prometheus metrics at /metrics
+          │
+          ▼
+Kubernetes Deployment → ClusterIP Service → ServiceMonitor
+                                                │
+                              Prometheus Operator monitoring stack
+                                                │
+                                  Prometheus rules and Grafana dashboard
 ```
 
----
+## Repository layout
 
-# 🧩 Tools & Technologies
-
-| Component | Technology |
-|----------|-----------|
-| Source Code Management | Git, GitHub |
-| CI/CD | Jenkins (Pipeline as Code) |
-| Build & Packaging | Docker |
-| Deployment & Orchestration | Kubernetes |
-| Infrastructure Provisioning | Terraform |
-| Monitoring & Alerts | Prometheus, Grafana |
-| Metrics | Node.js Express `/metrics` endpoint |
-
----
-
-# 📁 Project Structure
-
-```
-Capstone_project/
-│
-├── app/                     # Node.js application + Dockerfile
-│   ├── index.js
-│   └── Dockerfile
-│
-├── k8s/                     # Kubernetes manifests
-│   ├── deployment.yaml
-│   ├── service.yaml
-│   └── servicemonitor.yaml
-│
-├── infra/terraform/         # Terraform IaC resources
-│   └── main.tf
-│
-├── monitoring/              # Monitoring & Alert Rules
-│   ├── prometheus-rules-devopsx.yaml
-│   └── grafana-devopsx-dashboard.json
-│
-├── Jenkinsfile              # CI/CD pipeline
-└── README.md
+```text
+app/                 Node.js app, package metadata, and Dockerfile
+infra/terraform/     Kubernetes namespace and ConfigMap resources
+k8s/                 Deployment, Service, and ServiceMonitor manifests
+monitoring/          Prometheus alert rules and Grafana dashboard JSON
+Jenkinsfile          Jenkins pipeline example
 ```
 
----
+## Prerequisites
 
-# 🐳 Containerization (Docker)
+- Node.js 18 or later and npm for local development
+- Docker for building the application image
+- A Kubernetes cluster and a working `kubectl` context for deployment
+- Terraform 1.6 or later for the Terraform configuration
+- For monitoring resources, a Prometheus Operator installation providing the `ServiceMonitor` and `PrometheusRule` custom resource definitions
 
-```bash
-eval $(minikube docker-env)
+The Terraform Kubernetes provider reads the local kubeconfig at `~/.kube/config`.
+
+## Run locally
+
+From the repository root:
+
+```sh
+cd app
+npm install
+node index.js
+```
+
+The service listens on port `3000`. Visit `http://localhost:3000/` for the application response and `http://localhost:3000/metrics` for Prometheus metrics.
+
+## Build the Docker image
+
+From the repository root:
+
+```sh
 docker build -t devopsx-app:latest ./app
+docker run --rm -p 3000:3000 devopsx-app:latest
 ```
 
----
+For a local Kubernetes cluster such as Minikube, make sure the cluster can access the image. One option is to build directly into Minikube's image store before applying the manifests:
 
-# ☸️ Kubernetes Deployment
+```sh
+minikube image build -t devopsx-app:1.2 ./app
+```
 
-```bash
+The Kubernetes Deployment currently refers to `devopsx-app:1.2`; the Dockerfile does not prescribe an image tag.
+
+## Deploy to Kubernetes
+
+With the image available to the cluster:
+
+```sh
 kubectl apply -f k8s/
-kubectl get pods
+kubectl get deployment,service,pods
 ```
 
----
+The Deployment requests two replicas and the Service exposes port `3000`. To access it from your machine:
 
-# 🚀 CI/CD Pipeline (Jenkins)
-
-Defined using `Jenkinsfile` in repo root.
-
-## Pipeline Flow:
-1. Checkout Source Code
-2. Build Docker Image
-3. Deploy to Kubernetes
-4. Restart Deployment
-5. Post-Build Status
-
-Triggered:
-- via Git push (webhook or SCM scan)
-
----
-
-# 🛠️ Infrastructure as Code (Terraform)
-
-```bash
-cd infra/terraform
-terraform init
-terraform apply
-kubectl get namespaces
-```
-
-Creates namespace:
-- `devopsx`
-
----
-
-# 📈 Monitoring (Prometheus & Grafana)
-
-Implemented:
-- ServiceMonitor for scraping `/metrics`
-- Prometheus alert rules
-- Grafana dashboard
-
-Files:
-```
-monitoring/prometheus-rules-devopsx.yaml
-monitoring/grafana-devopsx-dashboard.json
-```
-
----
-
-# 📊 Accessing Grafana
-
-```bash
-kubectl port-forward svc/monitoring-grafana 3100:80
-```
-
-Open:
-```
-http://localhost:3100
-```
-
----
-
-# 🔔 Alerts Implemented
-
-## Alert 1: Deployment down
-Triggers when:
-```
-kube_deployment_status_replicas_available < 1
-```
-
-## Alert 2: High request rate
-Based on:
-```
-rate(devopsx_http_requests_total[5m])
-```
-
----
-
-# 🧪 Running the Application
-
-```bash
+```sh
 kubectl port-forward svc/devopsx-service 3000:3000
 ```
 
-App:
-```
-http://localhost:3000
-```
+Then open `http://localhost:3000/` or `http://localhost:3000/metrics`.
 
-Metrics:
-```
-http://localhost:3000/metrics
-```
+The manifests currently omit an explicit namespace and therefore deploy to the current namespace (normally `default`). The ServiceMonitor selects resources in `default`; keep these manifests aligned if deploying elsewhere.
 
----
+## Provision Kubernetes configuration with Terraform
 
-# 🧪 Test Alerts
+From `infra/terraform`:
 
-```bash
-kubectl scale deployment devopsx-deploy --replicas=0
+```sh
+terraform init
+terraform plan
+terraform apply
 ```
 
-Prometheus should report:
-```
-DevOpsXAppDown
-```
+Terraform creates the `devopsx` namespace and a ConfigMap with `APP_MESSAGE=Hello from Terraform-managed ConfigMap!`. The variable defaults are `namespace=devopsx` and `environment=dev`.
 
----
+Terraform currently does not deploy the application workload. Also note that the Kubernetes YAML manifests target the current namespace by default, while Terraform creates resources in `devopsx`; decide on one namespace and configure both paths consistently before combining them.
 
-# 🎯 Deliverables Completed
+## Monitoring
 
-✔ Fully functional CI/CD pipeline  
-✔ Terraform-based Infra provisioning  
-✔ Dockerized application  
-✔ Kubernetes deployment  
-✔ Monitoring dashboards + alerts  
-✔ DevOps workflow with GitHub integration  
-✔ Jenkinsfile-driven build automation  
+- `k8s/servicemonitor.yaml` configures scraping of `/metrics` every 15 seconds and expects the Prometheus release label `monitoring`.
+- `monitoring/monitoring-prometheus-rules.yaml` defines Prometheus alert rules.
+- `monitoring/grafana-dashboard-devopsx.json` is a Grafana dashboard definition that can be imported into Grafana.
 
----
+Apply the ServiceMonitor and Prometheus rules only after installing a compatible Prometheus Operator stack with the required CRDs and matching release label. This repository does not install Prometheus or Grafana, and does not include a Grafana Service to port-forward.
 
-# 📝 Conclusion
+The request counter currently labels metrics by route, not HTTP status. As a result, the high-error-rate rule's `status` label filter does not currently measure 5xx responses as intended. The deployment availability alert is configured to wait two minutes before firing.
 
-**DevOpsX 2.0** represents an enterprise-grade DevOps lifecycle, integrating:
-- infrastructure automation,
-- continuous delivery pipelines,
-- cloud-native deployments,
-- and real-time observability.
+## Jenkins pipeline
 
-This project aligns with modern DevOps practices focused on:
-automation, performance, scalability, and resilience.
+The root `Jenkinsfile` demonstrates checkout and pipeline stage structure. It uses Windows `bat` steps. The Docker build and Kubernetes deploy commands are examples printed to the build log, not executed commands; configure the agent, credentials, and actual build/deploy commands before treating it as a working CI/CD pipeline.
 
----
+## Current Kubernetes image and namespace settings
 
-# 👨‍💻 Author
-**FURQAN MULLA**
+Before deploying, check `k8s/deployment.yaml` and update its image reference to the tag you built and made available to the cluster. If using a namespace other than `default`, set `metadata.namespace` consistently in the Deployment, Service, and ServiceMonitor and ensure Prometheus is configured to discover that namespace.
 
+## Author
+
+Furqan Mulla
